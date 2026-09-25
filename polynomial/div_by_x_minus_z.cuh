@@ -250,6 +250,9 @@ void d_div_by_x_minus_z(fr_t d_inout[], size_t len, fr_t z)
                         }
                     }
 
+                    // Every thread may still be reading xchg[laneid] above.
+                    __syncthreads();
+
                     if (threadIdx.x < gridDim.x)
                         xchg[threadIdx.x] = carry_over;
 
@@ -401,6 +404,10 @@ void d_div_by_x_minus_z(fr_t d_inout[], size_t len, fr_t z)
         }
 
         if (N > 1) {
+            // Other warps may still be reading xchg from this chunk's earlier
+            // exchange.
+            __syncthreads();
+
             if (laneid == WARP_SZ-1)
                 xchg[warpid] = coeff[N-1];
 
@@ -429,6 +436,10 @@ void d_div_by_x_minus_z(fr_t d_inout[], size_t len, fr_t z)
             if (idx + i < len - rotate)
                 inout[idx + i + rotate] = coeff[i];
         }
+
+        // The next chunk writes xchg[warpid] while lane 0 of the next warp may
+        // still be reading it above.
+        __syncthreads();
     }
 
     if (rotate) {
